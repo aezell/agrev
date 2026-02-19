@@ -20,5 +20,6 @@ func init() {
 	rootCmd.AddCommand(reviewCmd)
 	rootCmd.AddCommand(summaryCmd)
 	rootCmd.AddCommand(checkCmd)
+	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(versionCmd)
 }
