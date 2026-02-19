@@ -636,16 +636,19 @@ func (m Model) renderStatusBar() string {
 		right += fmt.Sprintf("  %dV %dX %d?", approved, rejected, pending)
 	}
 
-	right += "  ? help "
+	right += "  ? help"
 
-	// statusBarStyle has Padding(0,1) = 2 extra chars; Width sets content width
-	statusContentWidth := m.width - 2 // subtract padding
-	barGap := statusContentWidth - lipgloss.Width(left) - lipgloss.Width(right)
+	barGap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
 	if barGap < 0 {
 		barGap = 0
 	}
 
-	bar := statusBarStyle.Width(statusContentWidth).Render(left + strings.Repeat(" ", barGap) + right)
+	content := left + strings.Repeat(" ", barGap) + right
+	bar := lipgloss.NewStyle().
+		Foreground(colorFg).
+		Background(colorBgLight).
+		Width(m.width).
+		Render(content)
 	return bar
 }
 
