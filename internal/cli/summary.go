@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/sprite-ai/agrev/internal/trace"
+	"github.com/aezell/agrev/internal/trace"
 )
 
 var summaryCmd = &cobra.Command{

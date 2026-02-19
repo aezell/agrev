@@ -13,9 +13,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/sprite-ai/agrev/internal/cli.version={{.Version}}
-      - -X github.com/sprite-ai/agrev/internal/cli.commit={{.Commit}}
-      - -X github.com/sprite-ai/agrev/internal/cli.date={{.Date}}
+      - -X github.com/aezell/agrev/internal/cli.version={{.Version}}
+      - -X github.com/aezell/agrev/internal/cli.commit={{.Commit}}
+      - -X github.com/aezell/agrev/internal/cli.date={{.Date}}
 
 archives:
   - format: tar.gz

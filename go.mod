@@ -1,4 +1,4 @@
-module github.com/sprite-ai/agrev
+module github.com/aezell/agrev
 
 go 1.25.1
 

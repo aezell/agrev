@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sprite-ai/agrev/internal/diff"
-	"github.com/sprite-ai/agrev/internal/model"
+	"github.com/aezell/agrev/internal/diff"
+	"github.com/aezell/agrev/internal/model"
 )
 
 // Finding represents a single analysis finding attached to a file and line range.

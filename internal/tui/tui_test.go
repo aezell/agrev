@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/sprite-ai/agrev/internal/diff"
-	"github.com/sprite-ai/agrev/internal/model"
-	"github.com/sprite-ai/agrev/internal/trace"
+	"github.com/aezell/agrev/internal/diff"
+	"github.com/aezell/agrev/internal/model"
+	"github.com/aezell/agrev/internal/trace"
 )
 
 const testDiff = `diff --git a/main.go b/main.go

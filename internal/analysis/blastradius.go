@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
-	"github.com/sprite-ai/agrev/internal/diff"
-	"github.com/sprite-ai/agrev/internal/model"
+	"github.com/aezell/agrev/internal/diff"
+	"github.com/aezell/agrev/internal/model"
 )
 
 // BlastRadiusPass estimates how many callers reference changed functions.

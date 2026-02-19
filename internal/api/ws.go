@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
-	"github.com/sprite-ai/agrev/internal/analysis"
-	"github.com/sprite-ai/agrev/internal/diff"
-	"github.com/sprite-ai/agrev/internal/model"
+	"github.com/aezell/agrev/internal/analysis"
+	"github.com/aezell/agrev/internal/diff"
+	"github.com/aezell/agrev/internal/model"
 )
 
 var upgrader = websocket.Upgrader{

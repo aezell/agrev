@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/sprite-ai/agrev/internal/analysis"
-	"github.com/sprite-ai/agrev/internal/diff"
-	"github.com/sprite-ai/agrev/internal/trace"
-	"github.com/sprite-ai/agrev/internal/tui"
+	"github.com/aezell/agrev/internal/analysis"
+	"github.com/aezell/agrev/internal/diff"
+	"github.com/aezell/agrev/internal/trace"
+	"github.com/aezell/agrev/internal/tui"
 )
 
 var reviewCmd = &cobra.Command{

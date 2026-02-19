@@ -38,13 +38,13 @@ Reviewing agent-generated code with `git diff` is like auditing a contractor's w
 ### From source
 
 ```bash
-go install github.com/sprite-ai/agrev/cmd/agrev@latest
+go install github.com/aezell/agrev/cmd/agrev@latest
 ```
 
 ### Build from repo
 
 ```bash
-git clone https://github.com/sprite-ai/agrev.git
+git clone https://github.com/aezell/agrev.git
 cd agrev
 make build
 # Binary at ./bin/agrev
@@ -52,7 +52,7 @@ make build
 
 ### Releases
 
-Download pre-built binaries from [GitHub Releases](https://github.com/sprite-ai/agrev/releases) for Linux and macOS (amd64/arm64).
+Download pre-built binaries from [GitHub Releases](https://github.com/aezell/agrev/releases) for Linux and macOS (amd64/arm64).
 
 ## Quick start
 
@@ -192,7 +192,7 @@ on:
 
 jobs:
   agrev:
-    uses: sprite-ai/agrev/.github/workflows/agrev-check.yaml@main
+    uses: aezell/agrev/.github/workflows/agrev-check.yaml@main
     with:
       format: markdown
       post-comment: true

@@ -9,10 +9,10 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sprite-ai/agrev/internal/analysis"
-	"github.com/sprite-ai/agrev/internal/diff"
-	"github.com/sprite-ai/agrev/internal/model"
-	"github.com/sprite-ai/agrev/internal/trace"
+	"github.com/aezell/agrev/internal/analysis"
+	"github.com/aezell/agrev/internal/diff"
+	"github.com/aezell/agrev/internal/model"
+	"github.com/aezell/agrev/internal/trace"
 )
 
 // Model is the top-level Bubble Tea model for agrev.

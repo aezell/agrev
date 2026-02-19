@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/sprite-ai/agrev/internal/api"
+	"github.com/aezell/agrev/internal/api"
 )
 
 var serveCmd = &cobra.Command{

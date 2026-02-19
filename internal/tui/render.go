@@ -6,7 +6,7 @@ import (
 
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sprite-ai/agrev/internal/diff"
+	"github.com/aezell/agrev/internal/diff"
 )
 
 // renderedLine is a single line of diff output ready for display.
