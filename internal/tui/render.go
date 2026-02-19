@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
@@ -127,18 +128,42 @@ func renderHighlightedContent(rl renderedLine, prefix string) string {
 	return b.String()
 }
 
+// pulseColor interpolates between a dim and bright version of a color based on phase.
+// Returns an animated lipgloss.Color that breathes between dim and full brightness.
+func pulseColor(dimRGB, brightRGB [3]int, phase float64) lipgloss.Color {
+	t := (math.Sin(phase) + 1) / 2 // 0.0 to 1.0
+	r := dimRGB[0] + int(t*float64(brightRGB[0]-dimRGB[0]))
+	g := dimRGB[1] + int(t*float64(brightRGB[1]-dimRGB[1]))
+	b := dimRGB[2] + int(t*float64(brightRGB[2]-dimRGB[2]))
+	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", r, g, b))
+}
+
+// Finding color pairs: [dim, bright] for each risk level.
+var (
+	findingHighDim    = [3]int{0x5a, 0x46, 0x8a} // muted purple
+	findingHighBright = [3]int{0xbd, 0x93, 0xf9} // bright purple
+	findingMedDim     = [3]int{0x44, 0x6a, 0x8a} // muted blue
+	findingMedBright  = [3]int{0x8b, 0xe9, 0xfd} // bright blue
+	findingLowDim     = [3]int{0x8a, 0x8a, 0x4c} // muted yellow
+	findingLowBright  = [3]int{0xf1, 0xfa, 0x8c} // bright yellow
+)
+
 // styleLine applies styling to a rendered line for unified view.
-func styleLine(rl renderedLine, width int) string {
+func styleLine(rl renderedLine, width int, phase float64) string {
 	if rl.IsFinding {
-		var style lipgloss.Style
+		var dim, bright [3]int
+		bold := false
 		switch {
-		case rl.FindingRisk >= 3: // RiskHigh or above
-			style = findingHighStyle
-		case rl.FindingRisk >= 2: // RiskMedium
-			style = findingMediumStyle
+		case rl.FindingRisk >= 3:
+			dim, bright = findingHighDim, findingHighBright
+			bold = true
+		case rl.FindingRisk >= 2:
+			dim, bright = findingMedDim, findingMedBright
 		default:
-			style = findingLowStyle
+			dim, bright = findingLowDim, findingLowBright
 		}
+		color := pulseColor(dim, bright, phase)
+		style := lipgloss.NewStyle().Foreground(color).Bold(bold)
 		text := rl.Content
 		if len(text) > width-2 {
 			text = text[:width-3] + "…"
@@ -201,7 +226,28 @@ func styleLine(rl renderedLine, width int) string {
 }
 
 // styleLineSplit renders a line for split (side-by-side) view.
-func styleLineSplit(rl renderedLine, halfWidth int) (left, right string) {
+func styleLineSplit(rl renderedLine, halfWidth int, phase float64) (left, right string) {
+	if rl.IsFinding {
+		var dim, bright [3]int
+		bold := false
+		switch {
+		case rl.FindingRisk >= 3:
+			dim, bright = findingHighDim, findingHighBright
+			bold = true
+		case rl.FindingRisk >= 2:
+			dim, bright = findingMedDim, findingMedBright
+		default:
+			dim, bright = findingLowDim, findingLowBright
+		}
+		color := pulseColor(dim, bright, phase)
+		style := lipgloss.NewStyle().Foreground(color).Bold(bold)
+		text := rl.Content
+		if len(text) > halfWidth*2 {
+			text = text[:halfWidth*2-1] + "…"
+		}
+		return style.Render(text), ""
+	}
+
 	if rl.IsHunk {
 		half := hunkHeaderStyle.Width(halfWidth).Render(rl.Content)
 		return half, ""

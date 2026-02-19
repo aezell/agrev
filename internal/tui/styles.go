@@ -108,11 +108,11 @@ var (
 
 	// Finding annotation styles
 	findingHighStyle = lipgloss.NewStyle().
-				Foreground(colorRed).
+				Foreground(colorPurple).
 				Bold(true)
 
 	findingMediumStyle = lipgloss.NewStyle().
-				Foreground(colorOrange)
+				Foreground(colorBlue)
 
 	findingLowStyle = lipgloss.NewStyle().
 			Foreground(colorYellow)

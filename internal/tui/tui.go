@@ -3,8 +3,10 @@ package tui
 
 import (
 	"fmt"
+	"math"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -58,6 +60,17 @@ type Model struct {
 
 	// Help
 	showHelp bool
+
+	// Finding pulse animation
+	pulsePhase float64
+}
+
+type tickMsg time.Time
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(50*time.Millisecond, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
 }
 
 // New creates a new TUI model from a parsed diff set and optional trace.
@@ -198,12 +211,19 @@ func (m *Model) updateTraceSteps() {
 
 // Init implements tea.Model.
 func (m Model) Init() tea.Cmd {
-	return nil
+	return tickCmd()
 }
 
 // Update implements tea.Model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tickMsg:
+		m.pulsePhase += 0.15
+		if m.pulsePhase > 2*math.Pi {
+			m.pulsePhase -= 2 * math.Pi
+		}
+		return m, tickCmd()
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -591,7 +611,7 @@ func (m Model) renderUnifiedDiff(b *strings.Builder, width, visibleLines int) {
 	}
 
 	for i := m.scrollOffset; i < end; i++ {
-		b.WriteString(styleLine(m.lines[i], width))
+		b.WriteString(styleLine(m.lines[i], width, m.pulsePhase))
 		if i < end-1 {
 			b.WriteByte('\n')
 		}
@@ -607,7 +627,7 @@ func (m Model) renderSplitDiff(b *strings.Builder, width, visibleLines int) {
 	}
 
 	for i := m.scrollOffset; i < end; i++ {
-		left, right := styleLineSplit(m.lines[i], halfWidth)
+		left, right := styleLineSplit(m.lines[i], halfWidth, m.pulsePhase)
 		b.WriteString(left)
 		b.WriteString(" │ ")
 		b.WriteString(right)
