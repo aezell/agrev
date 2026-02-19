@@ -33,6 +33,47 @@ Reviewing agent-generated code with `git diff` is like auditing a contractor's w
 - **HTTP API** — `agrev serve` exposes REST endpoints and a WebSocket for building editor plugins and web UIs
 - **Zero config** — Single binary, no runtime dependencies, auto-detects traces
 
+## Why agrev?
+
+You told an AI agent to "add authentication to the API." It made 14 changes across 9 files. Now you're staring at `git diff` trying to figure out if this is right.
+
+The diff tells you *what* changed, but not *why*. You can see a new middleware function, but you don't know the agent considered three approaches before settling on this one. You can see it deleted a helper, but you can't tell whether anything else still calls it. You can see new dependencies, but you'd have to go check if they're legitimate. And the whole time, you're scrolling through raw patches trying to hold the big picture in your head.
+
+`agrev` fills that gap. It sits between the agent's work and your `git commit`, giving you a structured review session where you can understand the full story before deciding what to keep.
+
+### How a review session works
+
+When you run `agrev review`, it reads the current diff and (if available) the agent's conversation trace. It runs six static analysis passes over the changes — flagging things like security-sensitive code, deleted functions with live callers, new dependencies, schema changes, anti-patterns, and high-blast-radius modifications. Then it drops you into an interactive TUI.
+
+The screen shows three panels: a file list on the left, the diff in the center, and the agent's trace on the right. Findings from the analysis passes appear inline in the diff, pulsing gently so they're easy to spot as you scroll through changes. You can navigate between files (`n`/`N`), jump between hunks (`]`/`[`), or jump directly between findings (`f`/`F`).
+
+As you review each file, you mark it: `a` to approve, `x` to reject, `u` to undo. After a decision, agrev auto-advances to the next undecided file. When you've gone through everything, press `Enter` to see a summary of your decisions.
+
+### What approve/reject actually does
+
+`agrev` is **read-only** — it never modifies your working tree, staging area, or git history. Approving or rejecting a file is a decision you're recording within the review session, not a git operation.
+
+The value comes when the session ends. If you pass `--output-patch`, agrev writes a patch file containing *only* the approved files. You can then apply it selectively:
+
+```bash
+# Review and generate a patch of approved changes
+agrev review main...HEAD -o approved.patch
+
+# Reset the branch and apply only what you approved
+git checkout main...HEAD -- .
+git apply approved.patch
+```
+
+If you pass `--commit-msg`, agrev generates a commit message summarizing what was approved and rejected. The idea is that you stay in control: the agent proposes, you review, and only the changes you explicitly approved make it through.
+
+### The trace panel
+
+The trace panel is what makes `agrev` different from a normal diff viewer. When an agent like Claude Code works on your codebase, it leaves a conversation trace — a log of its reasoning, the files it read, the commands it ran, the edits it made. `agrev` parses this trace and shows it alongside the diff.
+
+This means when you're looking at a new function the agent wrote, you can see in the trace panel *why* it chose that approach: maybe it tried a simpler version first but the tests failed, so it refactored. Or maybe it read a config file to understand the project's conventions. The trace gives you the context that the diff alone can't.
+
+`agrev` auto-detects traces from Claude Code, Aider, and any tool that writes a generic JSONL trace file. You can also point it at a specific trace with `--trace`.
+
 ## Installation
 
 ### From source
