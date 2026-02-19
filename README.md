@@ -105,6 +105,7 @@ agrev review [commit-range] [flags]
 | `j` / `k` | Scroll down / up |
 | `n` / `N` | Next / previous file |
 | `]` / `[` | Next / previous hunk |
+| `f` / `F` | Next / previous finding |
 | `a` | Approve current file |
 | `x` | Reject current file |
 | `u` | Undo decision |
