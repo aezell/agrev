@@ -17,10 +17,13 @@ var reviewCmd = &cobra.Command{
 	Use:   "review [commit-range]",
 	Short: "Open an interactive review session",
 	Long: `Open an interactive TUI for reviewing changes. By default, reviews
-HEAD against its parent commit. Optionally specify a commit range.
+uncommitted changes against HEAD. Optionally specify a commit range.
 
-You can also pipe a diff into agrev:
-  git diff main...HEAD | agrev review -`,
+Examples:
+  agrev review                     # working tree vs HEAD
+  agrev review HEAD~1..HEAD        # last commit
+  agrev review main...HEAD         # branch vs main
+  git diff | agrev review -        # pipe any diff`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runReview,
 }

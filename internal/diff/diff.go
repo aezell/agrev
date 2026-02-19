@@ -112,9 +112,9 @@ func GitDiff(repoDir string, args ...string) (string, error) {
 	return string(out), nil
 }
 
-// GitDiffHead returns the diff of HEAD against its parent.
+// GitDiffHead returns the diff of the working tree against HEAD.
 func GitDiffHead(repoDir string, contextLines int) (string, error) {
-	return GitDiff(repoDir, fmt.Sprintf("-U%d", contextLines), "HEAD~1", "HEAD")
+	return GitDiff(repoDir, fmt.Sprintf("-U%d", contextLines), "HEAD")
 }
 
 // GitDiffRange returns the diff for a commit range like "main...HEAD".

@@ -104,8 +104,11 @@ Download pre-built binaries from [GitHub Releases](https://github.com/aezell/agr
 ## Quick start
 
 ```bash
-# Review the last commit
+# Review uncommitted changes (working tree vs HEAD)
 agrev review
+
+# Review the last commit
+agrev review HEAD~1..HEAD
 
 # Review a branch against main
 agrev review main...HEAD
