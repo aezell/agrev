@@ -437,6 +437,12 @@ func (m Model) renderFileList(width, height int) string {
 
 	innerHeight := height - 2
 	content := b.String()
+	// Clip to prevent overflow
+	contentLines := strings.Split(content, "\n")
+	if len(contentLines) > innerHeight {
+		contentLines = contentLines[:innerHeight]
+		content = strings.Join(contentLines, "\n")
+	}
 	return fileListStyle.Width(width).Height(innerHeight).Render(content)
 }
 
@@ -475,24 +481,43 @@ func (m Model) renderDiffView(width, height int) string {
 	b.WriteString(header)
 	b.WriteByte('\n')
 
+	// Header with its bottom padding takes 2 lines
+	usedLines := 2
+
 	// Show file-level findings under the header
 	for _, fin := range fileLevelFindings {
+		if usedLines >= visibleLines {
+			break
+		}
 		b.WriteString(renderFinding(fin, innerWidth))
 		b.WriteByte('\n')
-		visibleLines--
+		usedLines++
+	}
+
+	diffLines := visibleLines - usedLines
+	if diffLines < 1 {
+		diffLines = 1
 	}
 
 	if m.splitView {
-		m.renderSplitDiff(&b, innerWidth, visibleLines, findingsByLine)
+		m.renderSplitDiff(&b, innerWidth, diffLines, findingsByLine)
 	} else {
-		m.renderUnifiedDiff(&b, innerWidth, visibleLines, findingsByLine)
+		m.renderUnifiedDiff(&b, innerWidth, diffLines, findingsByLine)
+	}
+
+	// Clip content to innerHeight lines to prevent overflow
+	content := b.String()
+	contentLines := strings.Split(content, "\n")
+	if len(contentLines) > innerHeight {
+		contentLines = contentLines[:innerHeight]
+		content = strings.Join(contentLines, "\n")
 	}
 
 	borderStyle := diffViewStyle
 	if m.focusPanel == 0 && m.showTrace {
 		borderStyle = borderStyle.BorderForeground(colorBlue)
 	}
-	return borderStyle.Width(width).Height(innerHeight).Render(b.String())
+	return borderStyle.Width(width).Height(innerHeight).Render(content)
 }
 
 func (m Model) renderUnifiedDiff(b *strings.Builder, width, visibleLines int, findingsByLine map[int][]analysis.Finding) {
@@ -582,11 +607,19 @@ func (m Model) renderTracePanel(width, height int) string {
 		}
 	}
 
+	// Clip to prevent overflow
+	content := b.String()
+	contentLines := strings.Split(content, "\n")
+	if len(contentLines) > innerHeight {
+		contentLines = contentLines[:innerHeight]
+		content = strings.Join(contentLines, "\n")
+	}
+
 	borderStyle := traceViewStyle
 	if m.focusPanel == 1 {
 		borderStyle = borderStyle.BorderForeground(colorBlue)
 	}
-	return borderStyle.Width(width).Height(innerHeight).Render(b.String())
+	return borderStyle.Width(width).Height(innerHeight).Render(content)
 }
 
 func renderFinding(fin analysis.Finding, width int) string {
