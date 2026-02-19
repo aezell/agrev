@@ -334,20 +334,25 @@ func (m Model) View() string {
 	}
 
 	// Layout: file list on left, diff in center, trace on right (if shown)
+	// Each bordered panel adds 4 chars (2 border + 2 padding) beyond its Width().
+	const panelChrome = 4 // border (2) + padding (2) per panel
+	const gap = 1         // space between panels
+
 	fileListWidth := m.fileListWidth()
 	mainHeight := m.height - 2 // status bar
 
 	// Calculate diff and trace widths
-	remaining := m.width - fileListWidth - 1 // gap between file list and diff
+	// Total budget: m.width = fileList(width+chrome) + gap + diff(width+chrome) [+ gap + trace(width+chrome)]
 	var diffWidth, traceWidth int
 	if m.showTrace && m.trace != nil {
-		traceWidth = remaining * 35 / 100 // 35% for trace
-		if traceWidth < 30 {
-			traceWidth = 30
+		available := m.width - (fileListWidth + panelChrome) - gap - gap - panelChrome - panelChrome
+		traceWidth = available * 35 / 100
+		if traceWidth < 26 {
+			traceWidth = 26
 		}
-		diffWidth = remaining - traceWidth - 1 // -1 for gap
+		diffWidth = available - traceWidth
 	} else {
-		diffWidth = remaining
+		diffWidth = m.width - (fileListWidth + panelChrome) - gap - panelChrome
 	}
 
 	fileList := m.renderFileList(fileListWidth, mainHeight)
@@ -441,7 +446,7 @@ func (m Model) renderDiffView(width, height int) string {
 	}
 
 	f := m.diffSet.Files[m.fileIndex]
-	innerWidth := width - 4
+	innerWidth := width // content width inside the border+padding
 	innerHeight := height - 2
 
 	headerText := f.Name()
@@ -506,7 +511,7 @@ func (m Model) renderSplitDiff(b *strings.Builder, width, visibleLines int) {
 }
 
 func (m Model) renderTracePanel(width, height int) string {
-	innerWidth := width - 4
+	innerWidth := width // content width inside the border+padding
 	innerHeight := height - 2
 
 	var b strings.Builder
@@ -633,14 +638,14 @@ func (m Model) renderStatusBar() string {
 
 	right += "  ? help "
 
-	// Account for padding (1 char each side) in the status bar style
-	innerWidth := m.width - 2
-	gap := innerWidth - lipgloss.Width(left) - lipgloss.Width(right)
-	if gap < 0 {
-		gap = 0
+	// statusBarStyle has Padding(0,1) = 2 extra chars; Width sets content width
+	statusContentWidth := m.width - 2 // subtract padding
+	barGap := statusContentWidth - lipgloss.Width(left) - lipgloss.Width(right)
+	if barGap < 0 {
+		barGap = 0
 	}
 
-	bar := statusBarStyle.Width(m.width).Render(left + strings.Repeat(" ", gap) + right)
+	bar := statusBarStyle.Width(statusContentWidth).Render(left + strings.Repeat(" ", barGap) + right)
 	return bar
 }
 
