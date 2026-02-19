@@ -105,6 +105,32 @@ var (
 	traceUserStyle = lipgloss.NewStyle().
 			Foreground(colorPurple)
 
+	// Review decision styles
+	fileApprovedStyle = lipgloss.NewStyle().
+				Foreground(colorGreen).
+				Bold(true)
+
+	fileRejectedStyle = lipgloss.NewStyle().
+				Foreground(colorRed).
+				Bold(true)
+
+	filePendingStyle = lipgloss.NewStyle().
+				Foreground(colorDim)
+
+	summaryHeaderStyle = lipgloss.NewStyle().
+				Foreground(colorBlue).
+				Bold(true).
+				Padding(1, 0)
+
+	summaryApprovedStyle = lipgloss.NewStyle().
+				Foreground(colorGreen)
+
+	summaryRejectedStyle = lipgloss.NewStyle().
+				Foreground(colorRed)
+
+	summaryPendingStyle = lipgloss.NewStyle().
+				Foreground(colorYellow)
+
 	// Help bar
 	helpBarStyle = lipgloss.NewStyle().
 			Foreground(colorDim)

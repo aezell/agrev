@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/sprite-ai/agrev/internal/diff"
+	"github.com/sprite-ai/agrev/internal/model"
 	"github.com/sprite-ai/agrev/internal/trace"
 )
 
@@ -222,5 +223,226 @@ func TestHelpToggle(t *testing.T) {
 	view := m.View()
 	if !strings.Contains(view, "Keyboard Shortcuts") {
 		t.Error("expected help view to contain shortcuts")
+	}
+}
+
+func TestApproveFile(t *testing.T) {
+	m := setupModel(t)
+
+	// Approve first file
+	newM, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m = newM.(Model)
+
+	if m.decisions[0] != model.DecisionApproved {
+		t.Error("expected file 0 to be approved")
+	}
+
+	// Should auto-advance to next undecided file
+	if m.fileIndex != 1 {
+		t.Errorf("expected auto-advance to file 1, got %d", m.fileIndex)
+	}
+}
+
+func TestRejectFile(t *testing.T) {
+	m := setupModel(t)
+
+	// Reject first file
+	newM, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	m = newM.(Model)
+
+	if m.decisions[0] != model.DecisionRejected {
+		t.Error("expected file 0 to be rejected")
+	}
+
+	// Should auto-advance
+	if m.fileIndex != 1 {
+		t.Errorf("expected auto-advance to file 1, got %d", m.fileIndex)
+	}
+}
+
+func TestUndoDecision(t *testing.T) {
+	m := setupModel(t)
+
+	// Approve first file
+	newM, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m = newM.(Model)
+
+	// Go back to first file
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'N'}})
+	m = newM.(Model)
+
+	// Undo
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}})
+	m = newM.(Model)
+
+	if _, exists := m.decisions[0]; exists {
+		t.Error("expected decision to be undone")
+	}
+}
+
+func TestDecisionCounts(t *testing.T) {
+	m := setupModel(t)
+
+	// Initially all pending
+	approved, rejected, pending := m.DecisionCounts()
+	if approved != 0 || rejected != 0 || pending != 2 {
+		t.Errorf("expected 0/0/2, got %d/%d/%d", approved, rejected, pending)
+	}
+
+	// Approve first
+	newM, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m = newM.(Model)
+
+	// Reject second
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	m = newM.(Model)
+
+	approved, rejected, pending = m.DecisionCounts()
+	if approved != 1 || rejected != 1 || pending != 0 {
+		t.Errorf("expected 1/1/0, got %d/%d/%d", approved, rejected, pending)
+	}
+}
+
+func TestFinishShowsSummary(t *testing.T) {
+	m := setupModel(t)
+
+	// Press Enter to finish
+	newM, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = newM.(Model)
+
+	if !m.showSummary {
+		t.Error("expected summary to be shown after Enter")
+	}
+
+	view := m.View()
+	if !strings.Contains(view, "Review Summary") {
+		t.Error("expected summary view to contain 'Review Summary'")
+	}
+}
+
+func TestSummaryEscGoesBack(t *testing.T) {
+	m := setupModel(t)
+
+	// Enter summary
+	newM, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = newM.(Model)
+
+	// Press Esc
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = newM.(Model)
+
+	if m.showSummary {
+		t.Error("expected summary to close on Esc")
+	}
+}
+
+func TestReviewResult(t *testing.T) {
+	ds, err := diff.Parse(testDiff)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	result := &ReviewResult{
+		Decisions: map[int]model.ReviewDecision{
+			0: model.DecisionApproved,
+			1: model.DecisionRejected,
+		},
+		Files: ds.Files,
+	}
+
+	approved := result.ApprovedFiles()
+	if len(approved) != 1 || approved[0].Name() != "main.go" {
+		t.Errorf("expected 1 approved file (main.go), got %d", len(approved))
+	}
+
+	rejected := result.RejectedFiles()
+	if len(rejected) != 1 || rejected[0].Name() != "util.go" {
+		t.Errorf("expected 1 rejected file (util.go), got %d", len(rejected))
+	}
+}
+
+func TestGeneratePatch(t *testing.T) {
+	ds, err := diff.Parse(testDiff)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	result := &ReviewResult{
+		Decisions: map[int]model.ReviewDecision{
+			0: model.DecisionApproved,
+			1: model.DecisionRejected,
+		},
+		Files: ds.Files,
+	}
+
+	patch := result.GeneratePatch()
+	if patch == "" {
+		t.Fatal("expected non-empty patch")
+	}
+
+	// Should contain approved file
+	if !strings.Contains(patch, "main.go") {
+		t.Error("expected patch to contain main.go")
+	}
+
+	// Should NOT contain rejected file
+	if strings.Contains(patch, "util.go") {
+		t.Error("expected patch to NOT contain util.go")
+	}
+}
+
+func TestGenerateCommitMessage(t *testing.T) {
+	ds, err := diff.Parse(testDiff)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	result := &ReviewResult{
+		Decisions: map[int]model.ReviewDecision{
+			0: model.DecisionApproved,
+			1: model.DecisionRejected,
+		},
+		Files: ds.Files,
+	}
+
+	msg := result.GenerateCommitMessage()
+	if msg == "" {
+		t.Fatal("expected non-empty commit message")
+	}
+
+	if !strings.Contains(msg, "main.go") {
+		t.Error("expected commit message to mention approved file")
+	}
+}
+
+func TestFileListShowsDecisionIndicators(t *testing.T) {
+	m := setupModel(t)
+
+	// Approve first file
+	newM, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m = newM.(Model)
+
+	// Go back to see the indicator
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'N'}})
+	m = newM.(Model)
+
+	view := m.View()
+	// The view should render without panic
+	if view == "" {
+		t.Error("expected non-empty view with decision indicators")
+	}
+}
+
+func TestStatusBarShowsReviewProgress(t *testing.T) {
+	m := setupModel(t)
+
+	// Approve first file
+	newM, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m = newM.(Model)
+
+	view := m.View()
+	// Status bar should show decision counts
+	if !strings.Contains(view, "1V") {
+		t.Error("expected status bar to show approved count")
 	}
 }

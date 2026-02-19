@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/sprite-ai/agrev/internal/analysis"
 	"github.com/sprite-ai/agrev/internal/diff"
+	"github.com/sprite-ai/agrev/internal/model"
 	"github.com/sprite-ai/agrev/internal/trace"
 )
 
@@ -48,6 +49,13 @@ type Model struct {
 	analysisResults *analysis.Results
 	fileFindings    []analysis.Finding // findings for current file
 
+	// Review decisions
+	decisions map[int]model.ReviewDecision // fileIndex -> decision
+
+	// Summary view
+	showSummary   bool
+	summaryScroll int
+
 	// Help
 	showHelp bool
 }
@@ -59,6 +67,7 @@ func New(ds *diff.DiffSet, t *trace.Trace, ar *analysis.Results) Model {
 		trace:           t,
 		splitView:       false,
 		analysisResults: ar,
+		decisions:       make(map[int]model.ReviewDecision),
 	}
 	m.updateLines()
 	m.updateTraceSteps()
@@ -134,6 +143,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// In summary view, handle differently
+		if m.showSummary {
+			return m.updateSummary(msg)
+		}
+
 		switch {
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
@@ -204,10 +218,87 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, keys.Help):
 			m.showHelp = !m.showHelp
+
+		case key.Matches(msg, keys.Approve):
+			if len(m.diffSet.Files) > 0 {
+				m.decisions[m.fileIndex] = model.DecisionApproved
+				m.advanceAfterDecision()
+			}
+
+		case key.Matches(msg, keys.Reject):
+			if len(m.diffSet.Files) > 0 {
+				m.decisions[m.fileIndex] = model.DecisionRejected
+				m.advanceAfterDecision()
+			}
+
+		case key.Matches(msg, keys.Undo):
+			if len(m.diffSet.Files) > 0 {
+				delete(m.decisions, m.fileIndex)
+			}
+
+		case key.Matches(msg, keys.Finish):
+			m.showSummary = true
+			m.summaryScroll = 0
 		}
 	}
 
 	return m, nil
+}
+
+func (m *Model) advanceAfterDecision() {
+	// Auto-advance to the next undecided file
+	for i := m.fileIndex + 1; i < len(m.diffSet.Files); i++ {
+		if _, decided := m.decisions[i]; !decided {
+			m.fileIndex = i
+			m.scrollOffset = 0
+			m.traceScroll = 0
+			m.updateLines()
+			m.updateTraceSteps()
+			m.updateFileFindings()
+			return
+		}
+	}
+	// If all remaining are decided, stay on current file
+}
+
+func (m Model) updateSummary(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, keys.Quit):
+		return m, tea.Quit
+	case key.Matches(msg, keys.Down):
+		m.summaryScroll++
+	case key.Matches(msg, keys.Up):
+		if m.summaryScroll > 0 {
+			m.summaryScroll--
+		}
+	case key.Matches(msg, keys.Finish):
+		// Pressing Enter on summary exits
+		return m, tea.Quit
+	case msg.String() == "esc":
+		// Go back to review
+		m.showSummary = false
+	}
+	return m, nil
+}
+
+// ReviewDecisions returns the current per-file decisions.
+func (m Model) ReviewDecisions() map[int]model.ReviewDecision {
+	return m.decisions
+}
+
+// DecisionCounts returns counts of approved, rejected, and pending files.
+func (m Model) DecisionCounts() (approved, rejected, pending int) {
+	for i := range m.diffSet.Files {
+		switch m.decisions[i] {
+		case model.DecisionApproved:
+			approved++
+		case model.DecisionRejected:
+			rejected++
+		default:
+			pending++
+		}
+	}
+	return
 }
 
 func (m *Model) jumpToNextHunk() {
@@ -232,6 +323,10 @@ func (m *Model) jumpToPrevHunk() {
 func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return "Loading..."
+	}
+
+	if m.showSummary {
+		return m.renderSummary()
 	}
 
 	if m.showHelp {
@@ -295,7 +390,18 @@ func (m Model) renderFileList(width, height int) string {
 	for i, f := range m.diffSet.Files {
 		name := f.Name()
 
-		maxName := width - 8
+		// Decision indicator
+		var indicator string
+		switch m.decisions[i] {
+		case model.DecisionApproved:
+			indicator = fileApprovedStyle.Render("V ")
+		case model.DecisionRejected:
+			indicator = fileRejectedStyle.Render("X ")
+		default:
+			indicator = filePendingStyle.Render("- ")
+		}
+
+		maxName := width - 12
 		if maxName > 0 && len(name) > maxName {
 			name = "…" + name[len(name)-maxName+1:]
 		}
@@ -306,6 +412,10 @@ func (m Model) renderFileList(width, height int) string {
 		var style lipgloss.Style
 		if i == m.fileIndex {
 			style = fileItemSelectedStyle
+		} else if m.decisions[i] == model.DecisionApproved {
+			style = lipgloss.NewStyle().Foreground(colorGreen)
+		} else if m.decisions[i] == model.DecisionRejected {
+			style = lipgloss.NewStyle().Foreground(colorRed)
 		} else if f.IsNew {
 			style = fileItemNewStyle
 		} else if f.IsDeleted {
@@ -314,7 +424,7 @@ func (m Model) renderFileList(width, height int) string {
 			style = fileItemStyle
 		}
 
-		b.WriteString(style.Width(width - 4).Render(line))
+		b.WriteString(indicator + style.Width(width - 8).Render(line))
 		if i < len(m.diffSet.Files)-1 {
 			b.WriteByte('\n')
 		}
@@ -516,6 +626,11 @@ func (m Model) renderStatusBar() string {
 		right += "  " + traceInfo
 	}
 
+	approved, rejected, pending := m.DecisionCounts()
+	if approved > 0 || rejected > 0 {
+		right += fmt.Sprintf("  %dV %dX %d?", approved, rejected, pending)
+	}
+
 	right += "  ? help "
 
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
@@ -527,6 +642,52 @@ func (m Model) renderStatusBar() string {
 	return bar
 }
 
+func (m Model) renderSummary() string {
+	var b strings.Builder
+
+	b.WriteString(summaryHeaderStyle.Render("Review Summary"))
+	b.WriteString("\n\n")
+
+	approved, rejected, pending := m.DecisionCounts()
+	total := len(m.diffSet.Files)
+
+	b.WriteString(fmt.Sprintf("  %d file(s) reviewed out of %d\n\n", total-pending, total))
+
+	if approved > 0 {
+		b.WriteString(summaryApprovedStyle.Render(fmt.Sprintf("  V Approved: %d", approved)))
+		b.WriteString("\n")
+	}
+	if rejected > 0 {
+		b.WriteString(summaryRejectedStyle.Render(fmt.Sprintf("  X Rejected: %d", rejected)))
+		b.WriteString("\n")
+	}
+	if pending > 0 {
+		b.WriteString(summaryPendingStyle.Render(fmt.Sprintf("  ? Pending:  %d", pending)))
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+
+	// List files by decision
+	for i, f := range m.diffSet.Files {
+		name := f.Name()
+		switch m.decisions[i] {
+		case model.DecisionApproved:
+			b.WriteString(summaryApprovedStyle.Render(fmt.Sprintf("  V %s", name)))
+		case model.DecisionRejected:
+			b.WriteString(summaryRejectedStyle.Render(fmt.Sprintf("  X %s", name)))
+		default:
+			b.WriteString(summaryPendingStyle.Render(fmt.Sprintf("  ? %s", name)))
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+	b.WriteString(helpBarStyle.Render("  Press Enter to exit  |  Esc to go back"))
+
+	return b.String()
+}
+
 func (m Model) renderHelp() string {
 	var b strings.Builder
 
@@ -535,10 +696,14 @@ func (m Model) renderHelp() string {
 
 	helpItems := []struct{ key, desc string }{
 		{"j/k", "Scroll up/down"},
-		{"n/Tab", "Next file"},
-		{"N/S-Tab", "Previous file"},
+		{"n", "Next file"},
+		{"N", "Previous file"},
 		{"]", "Next hunk"},
 		{"[", "Previous hunk"},
+		{"a", "Approve current file"},
+		{"x", "Reject current file"},
+		{"u", "Undo decision"},
+		{"Enter", "Finish review (summary)"},
 		{"v", "Toggle unified/split view"},
 		{"t", "Toggle trace panel"},
 		{"Tab", "Switch focus (diff/trace)"},
@@ -559,10 +724,19 @@ func (m Model) renderHelp() string {
 	return b.String()
 }
 
-// Run starts the TUI application.
-func Run(ds *diff.DiffSet, t *trace.Trace, ar *analysis.Results) error {
+// Run starts the TUI application and returns the review result.
+func Run(ds *diff.DiffSet, t *trace.Trace, ar *analysis.Results) (*ReviewResult, error) {
 	m := New(ds, t, ar)
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	_, err := p.Run()
-	return err
+	finalModel, err := p.Run()
+	if err != nil {
+		return nil, err
+	}
+
+	fm := finalModel.(Model)
+	result := &ReviewResult{
+		Decisions: fm.decisions,
+		Files:     ds.Files,
+	}
+	return result, nil
 }

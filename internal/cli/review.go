@@ -30,6 +30,8 @@ func init() {
 	reviewCmd.Flags().Bool("no-trace", false, "skip trace auto-detection")
 	reviewCmd.Flags().IntP("context", "C", 3, "lines of context around changes")
 	reviewCmd.Flags().Bool("stat", false, "print diff stats and exit (non-interactive)")
+	reviewCmd.Flags().StringP("output-patch", "o", "", "write approved changes as patch to file")
+	reviewCmd.Flags().Bool("commit-msg", false, "print a suggested commit message after review")
 }
 
 func runReview(cmd *cobra.Command, args []string) error {
@@ -74,7 +76,39 @@ func runReview(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Analysis: %s\n", ar.Summary())
 	}
 
-	return tui.Run(ds, t, ar)
+	result, err := tui.Run(ds, t, ar)
+	if err != nil {
+		return err
+	}
+
+	if result == nil {
+		return nil
+	}
+
+	// Output patch if requested
+	patchPath, _ := cmd.Flags().GetString("output-patch")
+	if patchPath != "" {
+		patch := result.GeneratePatch()
+		if patch != "" {
+			if err := os.WriteFile(patchPath, []byte(patch), 0644); err != nil {
+				return fmt.Errorf("writing patch: %w", err)
+			}
+			fmt.Fprintf(os.Stderr, "Patch written to %s\n", patchPath)
+		} else {
+			fmt.Fprintln(os.Stderr, "No approved files — no patch written.")
+		}
+	}
+
+	// Print commit message if requested
+	commitMsg, _ := cmd.Flags().GetBool("commit-msg")
+	if commitMsg {
+		msg := result.GenerateCommitMessage()
+		if msg != "" {
+			fmt.Println(msg)
+		}
+	}
+
+	return nil
 }
 
 func loadTrace(cmd *cobra.Command) (*trace.Trace, string) {

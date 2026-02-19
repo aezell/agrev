@@ -14,6 +14,10 @@ type keyMap struct {
 	FocusSwap key.Binding
 	Search    key.Binding
 	Help      key.Binding
+	Approve   key.Binding
+	Reject    key.Binding
+	Undo      key.Binding
+	Finish    key.Binding
 	Quit      key.Binding
 }
 
@@ -61,6 +65,22 @@ var keys = keyMap{
 	Help: key.NewBinding(
 		key.WithKeys("?"),
 		key.WithHelp("?", "help"),
+	),
+	Approve: key.NewBinding(
+		key.WithKeys("a"),
+		key.WithHelp("a", "approve file"),
+	),
+	Reject: key.NewBinding(
+		key.WithKeys("x"),
+		key.WithHelp("x", "reject file"),
+	),
+	Undo: key.NewBinding(
+		key.WithKeys("u"),
+		key.WithHelp("u", "undo decision"),
+	),
+	Finish: key.NewBinding(
+		key.WithKeys("enter"),
+		key.WithHelp("enter", "finish review"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
