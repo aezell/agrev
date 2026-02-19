@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/sprite-ai/agrev/internal/analysis"
 	"github.com/sprite-ai/agrev/internal/diff"
 	"github.com/sprite-ai/agrev/internal/trace"
 	"github.com/sprite-ai/agrev/internal/tui"
@@ -66,7 +67,14 @@ func runReview(cmd *cobra.Command, args []string) error {
 			traceSource, len(t.Steps), len(t.FilesChanged))
 	}
 
-	return tui.Run(ds, t)
+	// Run analysis
+	repoDir, _ := gitRepoRoot()
+	ar := analysis.Run(ds, repoDir, nil)
+	if len(ar.Findings) > 0 {
+		fmt.Fprintf(os.Stderr, "Analysis: %s\n", ar.Summary())
+	}
+
+	return tui.Run(ds, t, ar)
 }
 
 func loadTrace(cmd *cobra.Command) (*trace.Trace, string) {

@@ -39,7 +39,7 @@ func setupModel(t *testing.T) Model {
 	if err != nil {
 		t.Fatalf("Parse failed: %v", err)
 	}
-	m := New(ds, nil)
+	m := New(ds, nil, nil)
 	// Simulate window size
 	newM, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	return newM.(Model)
@@ -165,7 +165,7 @@ func TestTracePanel(t *testing.T) {
 		FilesChanged: []string{"main.go"},
 	}
 
-	m := New(ds, tr)
+	m := New(ds, tr, nil)
 	newM, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 40})
 	m = newM.(Model)
 

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/sprite-ai/agrev/internal/analysis"
 	"github.com/sprite-ai/agrev/internal/diff"
 	"github.com/sprite-ai/agrev/internal/trace"
 )
@@ -43,20 +44,37 @@ type Model struct {
 	// Panels
 	focusPanel int // 0=diff, 1=trace
 
+	// Analysis
+	analysisResults *analysis.Results
+	fileFindings    []analysis.Finding // findings for current file
+
 	// Help
 	showHelp bool
 }
 
 // New creates a new TUI model from a parsed diff set and optional trace.
-func New(ds *diff.DiffSet, t *trace.Trace) Model {
+func New(ds *diff.DiffSet, t *trace.Trace, ar *analysis.Results) Model {
 	m := Model{
-		diffSet:   ds,
-		trace:     t,
-		splitView: false,
+		diffSet:         ds,
+		trace:           t,
+		splitView:       false,
+		analysisResults: ar,
 	}
 	m.updateLines()
 	m.updateTraceSteps()
+	m.updateFileFindings()
 	return m
+}
+
+func (m *Model) updateFileFindings() {
+	if m.analysisResults == nil || len(m.diffSet.Files) == 0 {
+		m.fileFindings = nil
+		return
+	}
+
+	byFile := m.analysisResults.ByFile()
+	name := m.diffSet.Files[m.fileIndex].Name()
+	m.fileFindings = byFile[name]
 }
 
 func (m *Model) updateLines() {
@@ -149,6 +167,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.traceScroll = 0
 				m.updateLines()
 				m.updateTraceSteps()
+				m.updateFileFindings()
 			}
 
 		case key.Matches(msg, keys.PrevFile):
@@ -158,6 +177,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.traceScroll = 0
 				m.updateLines()
 				m.updateTraceSteps()
+				m.updateFileFindings()
 			}
 
 		case key.Matches(msg, keys.NextHunk):
@@ -314,7 +334,11 @@ func (m Model) renderDiffView(width, height int) string {
 	innerWidth := width - 4
 	innerHeight := height - 2
 
-	header := fileHeaderStyle.Render(f.Name())
+	headerText := f.Name()
+	if len(m.fileFindings) > 0 {
+		headerText += fmt.Sprintf("  [%d findings]", len(m.fileFindings))
+	}
+	header := fileHeaderStyle.Render(headerText)
 
 	visibleLines := innerHeight - 2
 	if visibleLines < 1 {
@@ -480,6 +504,10 @@ func (m Model) renderStatusBar() string {
 
 	right := fmt.Sprintf("+%d -%d  %s", added, deleted, mode)
 
+	if m.analysisResults != nil && len(m.analysisResults.Findings) > 0 {
+		right += fmt.Sprintf("  risk:%s", m.analysisResults.MaxRisk())
+	}
+
 	if m.trace != nil {
 		traceInfo := "t:trace"
 		if m.showTrace {
@@ -532,8 +560,8 @@ func (m Model) renderHelp() string {
 }
 
 // Run starts the TUI application.
-func Run(ds *diff.DiffSet, t *trace.Trace) error {
-	m := New(ds, t)
+func Run(ds *diff.DiffSet, t *trace.Trace, ar *analysis.Results) error {
+	m := New(ds, t, ar)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
 	return err
