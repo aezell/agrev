@@ -41,6 +41,12 @@ Reviewing agent-generated code with `git diff` is like auditing a contractor's w
 go install github.com/aezell/agrev/cmd/agrev@latest
 ```
 
+This puts the binary in your `$GOPATH/bin` (usually `~/go/bin`). Make sure it's in your `$PATH`:
+
+```bash
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
 ### Build from repo
 
 ```bash
