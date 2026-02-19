@@ -19,6 +19,10 @@ type renderedLine struct {
 
 	// Syntax highlighting tokens (nil = no highlighting)
 	Tokens []diff.Token
+
+	// Finding annotation
+	IsFinding  bool
+	FindingRisk int // 0=low, 1=medium, 2=high (maps to model.RiskLevel)
 }
 
 // renderFile produces renderedLines for a file's diff fragments.
@@ -125,6 +129,23 @@ func renderHighlightedContent(rl renderedLine, prefix string) string {
 
 // styleLine applies styling to a rendered line for unified view.
 func styleLine(rl renderedLine, width int) string {
+	if rl.IsFinding {
+		var style lipgloss.Style
+		switch {
+		case rl.FindingRisk >= 3: // RiskHigh or above
+			style = findingHighStyle
+		case rl.FindingRisk >= 2: // RiskMedium
+			style = findingMediumStyle
+		default:
+			style = findingLowStyle
+		}
+		text := rl.Content
+		if len(text) > width-2 {
+			text = text[:width-3] + "…"
+		}
+		return style.Render(text)
+	}
+
 	if rl.IsHunk {
 		return hunkHeaderStyle.Width(width).Render(rl.Content)
 	}

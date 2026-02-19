@@ -91,7 +91,54 @@ func (m *Model) updateLines() {
 		m.lines = nil
 		return
 	}
-	m.lines = renderFile(m.diffSet.Files[m.fileIndex])
+	base := renderFile(m.diffSet.Files[m.fileIndex])
+
+	// Insert finding annotations into the line list
+	if len(m.fileFindings) == 0 {
+		m.lines = base
+		return
+	}
+
+	// Build map of newLineNum -> findings
+	findingsByLine := make(map[int][]analysis.Finding)
+	var fileLevelFindings []analysis.Finding
+	for _, fin := range m.fileFindings {
+		if fin.Line == 0 {
+			fileLevelFindings = append(fileLevelFindings, fin)
+		} else {
+			findingsByLine[fin.Line] = append(findingsByLine[fin.Line], fin)
+		}
+	}
+
+	var lines []renderedLine
+
+	// File-level findings go first
+	for _, fin := range fileLevelFindings {
+		lines = append(lines, renderedLine{
+			IsFinding:   true,
+			FindingRisk: int(fin.Risk),
+			Content:     fmt.Sprintf("  >> [%s] %s", fin.Pass, fin.Message),
+		})
+	}
+
+	// Interleave findings after their matching diff lines
+	for _, rl := range base {
+		lines = append(lines, rl)
+		if rl.NewNum > 0 {
+			if findings, ok := findingsByLine[rl.NewNum]; ok {
+				for _, fin := range findings {
+					loc := fmt.Sprintf(":%d", fin.Line)
+					lines = append(lines, renderedLine{
+						IsFinding:   true,
+						FindingRisk: int(fin.Risk),
+						Content:     fmt.Sprintf("  >> [%s%s] %s", fin.Pass, loc, fin.Message),
+					})
+				}
+			}
+		}
+	}
+
+	m.lines = lines
 }
 
 func (m *Model) updateTraceSteps() {
@@ -199,6 +246,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, keys.PrevHunk):
 			m.jumpToPrevHunk()
+
+		case key.Matches(msg, keys.NextFinding):
+			m.jumpToNextFinding()
+
+		case key.Matches(msg, keys.PrevFinding):
+			m.jumpToPrevFinding()
 
 		case key.Matches(msg, keys.Toggle):
 			m.splitView = !m.splitView
@@ -313,6 +366,24 @@ func (m *Model) jumpToNextHunk() {
 func (m *Model) jumpToPrevHunk() {
 	for i := m.scrollOffset - 1; i >= 0; i-- {
 		if m.lines[i].IsHunk {
+			m.scrollOffset = i
+			return
+		}
+	}
+}
+
+func (m *Model) jumpToNextFinding() {
+	for i := m.scrollOffset + 1; i < len(m.lines); i++ {
+		if m.lines[i].IsFinding {
+			m.scrollOffset = i
+			return
+		}
+	}
+}
+
+func (m *Model) jumpToPrevFinding() {
+	for i := m.scrollOffset - 1; i >= 0; i-- {
+		if m.lines[i].IsFinding {
 			m.scrollOffset = i
 			return
 		}
@@ -452,7 +523,7 @@ func (m Model) renderDiffView(width, height int) string {
 	}
 
 	f := m.diffSet.Files[m.fileIndex]
-	innerWidth := width // content width inside the border+padding
+	innerWidth := width
 	innerHeight := height - 2
 
 	headerText := f.Name()
@@ -461,48 +532,20 @@ func (m Model) renderDiffView(width, height int) string {
 	}
 	header := fileHeaderStyle.Render(headerText)
 
+	// Header with bottom padding takes 2 lines
 	visibleLines := innerHeight - 2
 	if visibleLines < 1 {
 		visibleLines = 1
-	}
-
-	// Build line->findings map for inline annotations
-	findingsByLine := make(map[int][]analysis.Finding)
-	var fileLevelFindings []analysis.Finding
-	for _, fin := range m.fileFindings {
-		if fin.Line == 0 {
-			fileLevelFindings = append(fileLevelFindings, fin)
-		} else {
-			findingsByLine[fin.Line] = append(findingsByLine[fin.Line], fin)
-		}
 	}
 
 	var b strings.Builder
 	b.WriteString(header)
 	b.WriteByte('\n')
 
-	// Header with its bottom padding takes 2 lines
-	usedLines := 2
-
-	// Show file-level findings under the header
-	for _, fin := range fileLevelFindings {
-		if usedLines >= visibleLines {
-			break
-		}
-		b.WriteString(renderFinding(fin, innerWidth))
-		b.WriteByte('\n')
-		usedLines++
-	}
-
-	diffLines := visibleLines - usedLines
-	if diffLines < 1 {
-		diffLines = 1
-	}
-
 	if m.splitView {
-		m.renderSplitDiff(&b, innerWidth, diffLines, findingsByLine)
+		m.renderSplitDiff(&b, innerWidth, visibleLines)
 	} else {
-		m.renderUnifiedDiff(&b, innerWidth, diffLines, findingsByLine)
+		m.renderUnifiedDiff(&b, innerWidth, visibleLines)
 	}
 
 	// Clip content to innerHeight lines to prevent overflow
@@ -520,39 +563,21 @@ func (m Model) renderDiffView(width, height int) string {
 	return borderStyle.Width(width).Height(innerHeight).Render(content)
 }
 
-func (m Model) renderUnifiedDiff(b *strings.Builder, width, visibleLines int, findingsByLine map[int][]analysis.Finding) {
+func (m Model) renderUnifiedDiff(b *strings.Builder, width, visibleLines int) {
 	end := m.scrollOffset + visibleLines
 	if end > len(m.lines) {
 		end = len(m.lines)
 	}
 
-	linesWritten := 0
-	for i := m.scrollOffset; i < end && linesWritten < visibleLines; i++ {
-		rl := m.lines[i]
-		b.WriteString(styleLine(rl, width))
-		linesWritten++
-
-		// Show inline findings for this line's new line number
-		if rl.NewNum > 0 {
-			if findings, ok := findingsByLine[rl.NewNum]; ok {
-				for _, fin := range findings {
-					if linesWritten >= visibleLines {
-						break
-					}
-					b.WriteByte('\n')
-					b.WriteString(renderFinding(fin, width))
-					linesWritten++
-				}
-			}
-		}
-
-		if linesWritten < visibleLines {
+	for i := m.scrollOffset; i < end; i++ {
+		b.WriteString(styleLine(m.lines[i], width))
+		if i < end-1 {
 			b.WriteByte('\n')
 		}
 	}
 }
 
-func (m Model) renderSplitDiff(b *strings.Builder, width, visibleLines int, findingsByLine map[int][]analysis.Finding) {
+func (m Model) renderSplitDiff(b *strings.Builder, width, visibleLines int) {
 	halfWidth := (width - 3) / 2
 
 	end := m.scrollOffset + visibleLines
@@ -622,30 +647,6 @@ func (m Model) renderTracePanel(width, height int) string {
 	return borderStyle.Width(width).Height(innerHeight).Render(content)
 }
 
-func renderFinding(fin analysis.Finding, width int) string {
-	var style lipgloss.Style
-	switch {
-	case fin.Risk >= model.RiskHigh:
-		style = findingHighStyle
-	case fin.Risk >= model.RiskMedium:
-		style = findingMediumStyle
-	default:
-		style = findingLowStyle
-	}
-
-	loc := ""
-	if fin.Line > 0 {
-		loc = fmt.Sprintf(":%d", fin.Line)
-	}
-
-	text := fmt.Sprintf("  >> [%s%s] %s", fin.Pass, loc, fin.Message)
-	maxLen := width - 2
-	if maxLen > 0 && len(text) > maxLen {
-		text = text[:maxLen-1] + "…"
-	}
-
-	return style.Render(text)
-}
 
 func renderTraceStep(step trace.Step, width int, isCurrent bool) string {
 	icon := stepIcon(step.Type)
@@ -804,6 +805,8 @@ func (m Model) renderHelp() string {
 		{"N", "Previous file"},
 		{"]", "Next hunk"},
 		{"[", "Previous hunk"},
+		{"f", "Next finding"},
+		{"F", "Previous finding"},
 		{"a", "Approve current file"},
 		{"x", "Reject current file"},
 		{"u", "Undo decision"},
