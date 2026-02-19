@@ -69,9 +69,9 @@ func New(ds *diff.DiffSet, t *trace.Trace, ar *analysis.Results) Model {
 		analysisResults: ar,
 		decisions:       make(map[int]model.ReviewDecision),
 	}
+	m.updateFileFindings()
 	m.updateLines()
 	m.updateTraceSteps()
-	m.updateFileFindings()
 	return m
 }
 
@@ -226,9 +226,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.fileIndex++
 				m.scrollOffset = 0
 				m.traceScroll = 0
+				m.updateFileFindings()
 				m.updateLines()
 				m.updateTraceSteps()
-				m.updateFileFindings()
 			}
 
 		case key.Matches(msg, keys.PrevFile):
@@ -236,9 +236,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.fileIndex--
 				m.scrollOffset = 0
 				m.traceScroll = 0
+				m.updateFileFindings()
 				m.updateLines()
 				m.updateTraceSteps()
-				m.updateFileFindings()
 			}
 
 		case key.Matches(msg, keys.NextHunk):
@@ -305,9 +305,9 @@ func (m *Model) advanceAfterDecision() {
 			m.fileIndex = i
 			m.scrollOffset = 0
 			m.traceScroll = 0
+			m.updateFileFindings()
 			m.updateLines()
 			m.updateTraceSteps()
-			m.updateFileFindings()
 			return
 		}
 	}
