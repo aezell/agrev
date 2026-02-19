@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/sprite-ai/agrev/internal/diff"
+	"github.com/sprite-ai/agrev/internal/trace"
 	"github.com/sprite-ai/agrev/internal/tui"
 )
 
@@ -58,7 +59,49 @@ func runReview(cmd *cobra.Command, args []string) error {
 		return printStat(ds)
 	}
 
-	return tui.Run(ds)
+	// Load trace
+	t, traceSource := loadTrace(cmd)
+	if t != nil {
+		fmt.Fprintf(os.Stderr, "Loaded %s trace: %d steps, %d files\n",
+			traceSource, len(t.Steps), len(t.FilesChanged))
+	}
+
+	return tui.Run(ds, t)
+}
+
+func loadTrace(cmd *cobra.Command) (*trace.Trace, string) {
+	noTrace, _ := cmd.Flags().GetBool("no-trace")
+	if noTrace {
+		return nil, ""
+	}
+
+	tracePath, _ := cmd.Flags().GetString("trace")
+	if tracePath != "" {
+		t, err := trace.Load(tracePath, "")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not load trace %s: %v\n", tracePath, err)
+			return nil, ""
+		}
+		return t, t.Source
+	}
+
+	// Auto-detect
+	repoDir, err := gitRepoRoot()
+	if err != nil {
+		return nil, ""
+	}
+
+	t, err := trace.DetectAndLoad(repoDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: trace detection failed: %v\n", err)
+		return nil, ""
+	}
+
+	if t != nil {
+		return t, t.Source
+	}
+
+	return nil, ""
 }
 
 func getDiff(args []string, contextLines int) (string, error) {

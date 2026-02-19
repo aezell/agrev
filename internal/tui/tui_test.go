@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/sprite-ai/agrev/internal/diff"
+	"github.com/sprite-ai/agrev/internal/trace"
 )
 
 const testDiff = `diff --git a/main.go b/main.go
@@ -38,7 +39,7 @@ func setupModel(t *testing.T) Model {
 	if err != nil {
 		t.Fatalf("Parse failed: %v", err)
 	}
-	m := New(ds)
+	m := New(ds, nil)
 	// Simulate window size
 	newM, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	return newM.(Model)
@@ -144,6 +145,68 @@ func TestViewRenders(t *testing.T) {
 	// Should contain diff content
 	if !strings.Contains(view, "hello") {
 		t.Error("expected view to contain 'hello'")
+	}
+}
+
+func TestTracePanel(t *testing.T) {
+	ds, err := diff.Parse(testDiff)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	tr := &trace.Trace{
+		Source:    "claude-code",
+		SessionID: "test-session",
+		Steps: []trace.Step{
+			{Type: trace.StepReasoning, Summary: "Planning changes to main.go"},
+			{Type: trace.StepFileWrite, Summary: "Write main.go", FilePath: "main.go"},
+			{Type: trace.StepBash, Summary: "go test ./...", Command: "go test ./..."},
+		},
+		FilesChanged: []string{"main.go"},
+	}
+
+	m := New(ds, tr)
+	newM, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	m = newM.(Model)
+
+	if m.trace == nil {
+		t.Error("expected trace to be set")
+	}
+
+	// Trace panel should start hidden
+	if m.showTrace {
+		t.Error("expected trace panel hidden by default")
+	}
+
+	// Toggle trace
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	m = newM.(Model)
+	if !m.showTrace {
+		t.Error("expected trace panel visible after toggle")
+	}
+
+	// Render should include trace
+	view := m.View()
+	if !strings.Contains(view, "Agent Trace") {
+		t.Error("expected view to contain 'Agent Trace'")
+	}
+
+	// Toggle off
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	m = newM.(Model)
+	if m.showTrace {
+		t.Error("expected trace panel hidden after second toggle")
+	}
+}
+
+func TestNoTraceNoToggle(t *testing.T) {
+	m := setupModel(t) // no trace
+
+	// Pressing t should do nothing
+	newM, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	m = newM.(Model)
+	if m.showTrace {
+		t.Error("trace panel should not toggle when no trace loaded")
 	}
 }
 

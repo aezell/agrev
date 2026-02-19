@@ -3,16 +3,18 @@ package tui
 import "github.com/charmbracelet/bubbles/key"
 
 type keyMap struct {
-	Up       key.Binding
-	Down     key.Binding
-	NextFile key.Binding
-	PrevFile key.Binding
-	NextHunk key.Binding
-	PrevHunk key.Binding
-	Toggle   key.Binding
-	Search   key.Binding
-	Help     key.Binding
-	Quit     key.Binding
+	Up        key.Binding
+	Down      key.Binding
+	NextFile  key.Binding
+	PrevFile  key.Binding
+	NextHunk  key.Binding
+	PrevHunk  key.Binding
+	Toggle    key.Binding
+	Trace     key.Binding
+	FocusSwap key.Binding
+	Search    key.Binding
+	Help      key.Binding
+	Quit      key.Binding
 }
 
 var keys = keyMap{
@@ -25,12 +27,12 @@ var keys = keyMap{
 		key.WithHelp("↓/j", "down"),
 	),
 	NextFile: key.NewBinding(
-		key.WithKeys("n", "tab"),
-		key.WithHelp("n/tab", "next file"),
+		key.WithKeys("n"),
+		key.WithHelp("n", "next file"),
 	),
 	PrevFile: key.NewBinding(
-		key.WithKeys("N", "shift+tab"),
-		key.WithHelp("N/S-tab", "prev file"),
+		key.WithKeys("N"),
+		key.WithHelp("N", "prev file"),
 	),
 	NextHunk: key.NewBinding(
 		key.WithKeys("]"),
@@ -43,6 +45,14 @@ var keys = keyMap{
 	Toggle: key.NewBinding(
 		key.WithKeys("v"),
 		key.WithHelp("v", "unified/split"),
+	),
+	Trace: key.NewBinding(
+		key.WithKeys("t"),
+		key.WithHelp("t", "toggle trace"),
+	),
+	FocusSwap: key.NewBinding(
+		key.WithKeys("tab"),
+		key.WithHelp("tab", "switch panel"),
 	),
 	Search: key.NewBinding(
 		key.WithKeys("/"),

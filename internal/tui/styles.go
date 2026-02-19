@@ -79,6 +79,32 @@ var (
 			Background(colorBgLight).
 			Bold(true)
 
+	// Trace panel styles
+	traceViewStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colorBorder).
+			Padding(0, 1)
+
+	traceHeaderStyle = lipgloss.NewStyle().
+				Foreground(colorPurple).
+				Bold(true).
+				Padding(0, 0, 1, 0)
+
+	traceWriteStyle = lipgloss.NewStyle().
+			Foreground(colorGreen)
+
+	traceBashStyle = lipgloss.NewStyle().
+			Foreground(colorYellow)
+
+	traceReasonStyle = lipgloss.NewStyle().
+				Foreground(colorFg)
+
+	traceReadStyle = lipgloss.NewStyle().
+			Foreground(colorBlue)
+
+	traceUserStyle = lipgloss.NewStyle().
+			Foreground(colorPurple)
+
 	// Help bar
 	helpBarStyle = lipgloss.NewStyle().
 			Foreground(colorDim)

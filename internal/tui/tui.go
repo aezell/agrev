@@ -3,17 +3,20 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/sprite-ai/agrev/internal/diff"
+	"github.com/sprite-ai/agrev/internal/trace"
 )
 
 // Model is the top-level Bubble Tea model for agrev.
 type Model struct {
 	diffSet *diff.DiffSet
+	trace   *trace.Trace // nil if no trace
 
 	// UI state
 	width  int
@@ -32,17 +35,27 @@ type Model struct {
 	// View mode
 	splitView bool
 
+	// Trace panel
+	showTrace    bool
+	traceScroll  int
+	traceSteps   []trace.Step // steps relevant to current file (or all if no file filter)
+
+	// Panels
+	focusPanel int // 0=diff, 1=trace
+
 	// Help
 	showHelp bool
 }
 
-// New creates a new TUI model from a parsed diff set.
-func New(ds *diff.DiffSet) Model {
+// New creates a new TUI model from a parsed diff set and optional trace.
+func New(ds *diff.DiffSet, t *trace.Trace) Model {
 	m := Model{
 		diffSet:   ds,
+		trace:     t,
 		splitView: false,
 	}
 	m.updateLines()
+	m.updateTraceSteps()
 	return m
 }
 
@@ -52,6 +65,40 @@ func (m *Model) updateLines() {
 		return
 	}
 	m.lines = renderFile(m.diffSet.Files[m.fileIndex])
+}
+
+func (m *Model) updateTraceSteps() {
+	if m.trace == nil {
+		m.traceSteps = nil
+		return
+	}
+
+	if len(m.diffSet.Files) == 0 {
+		m.traceSteps = m.trace.Steps
+		return
+	}
+
+	// Get steps related to the current file
+	f := m.diffSet.Files[m.fileIndex]
+	name := f.Name()
+
+	// Match by filename (trace may have absolute paths)
+	var filtered []trace.Step
+	for _, s := range m.trace.Steps {
+		if s.FilePath != "" {
+			base := filepath.Base(s.FilePath)
+			if base == filepath.Base(name) || strings.HasSuffix(s.FilePath, name) {
+				filtered = append(filtered, s)
+			}
+		}
+	}
+
+	if len(filtered) > 0 {
+		m.traceSteps = filtered
+	} else {
+		// Show all steps if no file-specific matches
+		m.traceSteps = m.trace.Steps
+	}
 }
 
 // Init implements tea.Model.
@@ -65,7 +112,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.viewHeight = m.height - 4 // status bar + help bar + borders
+		m.viewHeight = m.height - 4
 		return m, nil
 
 	case tea.KeyMsg:
@@ -74,27 +121,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case key.Matches(msg, keys.Down):
-			if m.scrollOffset < len(m.lines)-1 {
-				m.scrollOffset++
+			if m.focusPanel == 0 {
+				if m.scrollOffset < len(m.lines)-1 {
+					m.scrollOffset++
+				}
+			} else {
+				if m.traceScroll < len(m.traceSteps)-1 {
+					m.traceScroll++
+				}
 			}
 
 		case key.Matches(msg, keys.Up):
-			if m.scrollOffset > 0 {
-				m.scrollOffset--
+			if m.focusPanel == 0 {
+				if m.scrollOffset > 0 {
+					m.scrollOffset--
+				}
+			} else {
+				if m.traceScroll > 0 {
+					m.traceScroll--
+				}
 			}
 
 		case key.Matches(msg, keys.NextFile):
 			if m.fileIndex < len(m.diffSet.Files)-1 {
 				m.fileIndex++
 				m.scrollOffset = 0
+				m.traceScroll = 0
 				m.updateLines()
+				m.updateTraceSteps()
 			}
 
 		case key.Matches(msg, keys.PrevFile):
 			if m.fileIndex > 0 {
 				m.fileIndex--
 				m.scrollOffset = 0
+				m.traceScroll = 0
 				m.updateLines()
+				m.updateTraceSteps()
 			}
 
 		case key.Matches(msg, keys.NextHunk):
@@ -105,6 +168,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, keys.Toggle):
 			m.splitView = !m.splitView
+
+		case key.Matches(msg, keys.Trace):
+			if m.trace != nil {
+				m.showTrace = !m.showTrace
+				if !m.showTrace {
+					m.focusPanel = 0
+				}
+			}
+
+		case key.Matches(msg, keys.FocusSwap):
+			if m.showTrace {
+				m.focusPanel = 1 - m.focusPanel
+			}
 
 		case key.Matches(msg, keys.Help):
 			m.showHelp = !m.showHelp
@@ -142,14 +218,33 @@ func (m Model) View() string {
 		return m.renderHelp()
 	}
 
-	// Layout: file list on left, diff on right
+	// Layout: file list on left, diff in center, trace on right (if shown)
 	fileListWidth := m.fileListWidth()
-	diffWidth := m.width - fileListWidth - 1 // -1 for gap
+	mainHeight := m.height - 2 // status bar
 
-	fileList := m.renderFileList(fileListWidth, m.height-2)
-	diffView := m.renderDiffView(diffWidth, m.height-2)
+	// Calculate diff and trace widths
+	remaining := m.width - fileListWidth - 1 // gap between file list and diff
+	var diffWidth, traceWidth int
+	if m.showTrace && m.trace != nil {
+		traceWidth = remaining * 35 / 100 // 35% for trace
+		if traceWidth < 30 {
+			traceWidth = 30
+		}
+		diffWidth = remaining - traceWidth - 1 // -1 for gap
+	} else {
+		diffWidth = remaining
+	}
 
-	main := lipgloss.JoinHorizontal(lipgloss.Top, fileList, " ", diffView)
+	fileList := m.renderFileList(fileListWidth, mainHeight)
+	diffView := m.renderDiffView(diffWidth, mainHeight)
+
+	var main string
+	if m.showTrace && m.trace != nil {
+		traceView := m.renderTracePanel(traceWidth, mainHeight)
+		main = lipgloss.JoinHorizontal(lipgloss.Top, fileList, " ", diffView, " ", traceView)
+	} else {
+		main = lipgloss.JoinHorizontal(lipgloss.Top, fileList, " ", diffView)
+	}
 
 	statusBar := m.renderStatusBar()
 
@@ -157,7 +252,6 @@ func (m Model) View() string {
 }
 
 func (m Model) fileListWidth() int {
-	// Calculate based on longest filename, capped
 	maxLen := 20
 	for _, f := range m.diffSet.Files {
 		name := f.Name()
@@ -165,7 +259,7 @@ func (m Model) fileListWidth() int {
 			maxLen = len(name)
 		}
 	}
-	w := maxLen + 10 // padding + stats
+	w := maxLen + 10
 	if w > m.width/3 {
 		w = m.width / 3
 	}
@@ -181,7 +275,6 @@ func (m Model) renderFileList(width, height int) string {
 	for i, f := range m.diffSet.Files {
 		name := f.Name()
 
-		// Truncate name if needed
 		maxName := width - 8
 		if maxName > 0 && len(name) > maxName {
 			name = "…" + name[len(name)-maxName+1:]
@@ -207,7 +300,7 @@ func (m Model) renderFileList(width, height int) string {
 		}
 	}
 
-	innerHeight := height - 2 // borders
+	innerHeight := height - 2
 	content := b.String()
 	return fileListStyle.Width(width).Height(innerHeight).Render(content)
 }
@@ -218,14 +311,12 @@ func (m Model) renderDiffView(width, height int) string {
 	}
 
 	f := m.diffSet.Files[m.fileIndex]
-	innerWidth := width - 4  // borders + padding
+	innerWidth := width - 4
 	innerHeight := height - 2
 
-	// File header
 	header := fileHeaderStyle.Render(f.Name())
 
-	// Calculate visible lines
-	visibleLines := innerHeight - 2 // header takes some space
+	visibleLines := innerHeight - 2
 	if visibleLines < 1 {
 		visibleLines = 1
 	}
@@ -240,7 +331,11 @@ func (m Model) renderDiffView(width, height int) string {
 		m.renderUnifiedDiff(&b, innerWidth, visibleLines)
 	}
 
-	return diffViewStyle.Width(width).Height(innerHeight).Render(b.String())
+	borderStyle := diffViewStyle
+	if m.focusPanel == 0 && m.showTrace {
+		borderStyle = borderStyle.BorderForeground(colorBlue)
+	}
+	return borderStyle.Width(width).Height(innerHeight).Render(b.String())
 }
 
 func (m Model) renderUnifiedDiff(b *strings.Builder, width, visibleLines int) {
@@ -258,7 +353,7 @@ func (m Model) renderUnifiedDiff(b *strings.Builder, width, visibleLines int) {
 }
 
 func (m Model) renderSplitDiff(b *strings.Builder, width, visibleLines int) {
-	halfWidth := (width - 3) / 2 // -3 for separator
+	halfWidth := (width - 3) / 2
 
 	end := m.scrollOffset + visibleLines
 	if end > len(m.lines) {
@@ -276,6 +371,100 @@ func (m Model) renderSplitDiff(b *strings.Builder, width, visibleLines int) {
 	}
 }
 
+func (m Model) renderTracePanel(width, height int) string {
+	innerWidth := width - 4
+	innerHeight := height - 2
+
+	var b strings.Builder
+
+	// Header
+	title := "Agent Trace"
+	if m.trace != nil {
+		title += fmt.Sprintf(" (%s)", m.trace.Source)
+	}
+	b.WriteString(traceHeaderStyle.Render(title))
+	b.WriteByte('\n')
+
+	if len(m.traceSteps) == 0 {
+		b.WriteString(contextLineStyle.Render("No trace steps for this file"))
+	} else {
+		visibleLines := innerHeight - 2
+		if visibleLines < 1 {
+			visibleLines = 1
+		}
+
+		end := m.traceScroll + visibleLines
+		if end > len(m.traceSteps) {
+			end = len(m.traceSteps)
+		}
+
+		for i := m.traceScroll; i < end; i++ {
+			step := m.traceSteps[i]
+			b.WriteString(renderTraceStep(step, innerWidth, i == m.traceScroll))
+			if i < end-1 {
+				b.WriteByte('\n')
+			}
+		}
+	}
+
+	borderStyle := traceViewStyle
+	if m.focusPanel == 1 {
+		borderStyle = borderStyle.BorderForeground(colorBlue)
+	}
+	return borderStyle.Width(width).Height(innerHeight).Render(b.String())
+}
+
+func renderTraceStep(step trace.Step, width int, isCurrent bool) string {
+	icon := stepIcon(step.Type)
+	summary := step.Summary
+
+	maxSummary := width - 4
+	if len(summary) > maxSummary {
+		summary = summary[:maxSummary-1] + "…"
+	}
+
+	line := fmt.Sprintf("%s %s", icon, summary)
+
+	var style lipgloss.Style
+	switch step.Type {
+	case trace.StepFileWrite, trace.StepFileEdit:
+		style = traceWriteStyle
+	case trace.StepBash:
+		style = traceBashStyle
+	case trace.StepReasoning, trace.StepPlan:
+		style = traceReasonStyle
+	case trace.StepFileRead:
+		style = traceReadStyle
+	case trace.StepUserMessage:
+		style = traceUserStyle
+	default:
+		style = contextLineStyle
+	}
+
+	return style.Width(width).Render(line)
+}
+
+func stepIcon(st trace.StepType) string {
+	switch st {
+	case trace.StepPlan:
+		return "P"
+	case trace.StepReasoning:
+		return ">"
+	case trace.StepFileRead:
+		return "R"
+	case trace.StepFileWrite:
+		return "W"
+	case trace.StepFileEdit:
+		return "E"
+	case trace.StepBash:
+		return "$"
+	case trace.StepUserMessage:
+		return "U"
+	default:
+		return "."
+	}
+}
+
 func (m Model) renderStatusBar() string {
 	nFiles, added, deleted := m.diffSet.Stats()
 
@@ -289,7 +478,17 @@ func (m Model) renderStatusBar() string {
 		mode = "split"
 	}
 
-	right := fmt.Sprintf("+%d -%d  %s  ? help ", added, deleted, mode)
+	right := fmt.Sprintf("+%d -%d  %s", added, deleted, mode)
+
+	if m.trace != nil {
+		traceInfo := "t:trace"
+		if m.showTrace {
+			traceInfo = fmt.Sprintf("t:trace[%d]", len(m.traceSteps))
+		}
+		right += "  " + traceInfo
+	}
+
+	right += "  ? help "
 
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 0 {
@@ -307,13 +506,14 @@ func (m Model) renderHelp() string {
 	b.WriteString("\n\n")
 
 	helpItems := []struct{ key, desc string }{
-		{"↑/k", "Scroll up"},
-		{"↓/j", "Scroll down"},
+		{"j/k", "Scroll up/down"},
 		{"n/Tab", "Next file"},
 		{"N/S-Tab", "Previous file"},
 		{"]", "Next hunk"},
 		{"[", "Previous hunk"},
 		{"v", "Toggle unified/split view"},
+		{"t", "Toggle trace panel"},
+		{"Tab", "Switch focus (diff/trace)"},
 		{"?", "Toggle this help"},
 		{"q", "Quit"},
 	}
@@ -332,8 +532,8 @@ func (m Model) renderHelp() string {
 }
 
 // Run starts the TUI application.
-func Run(ds *diff.DiffSet) error {
-	m := New(ds)
+func Run(ds *diff.DiffSet, t *trace.Trace) error {
+	m := New(ds, t)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
 	return err
