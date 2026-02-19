@@ -13,6 +13,7 @@ var (
 	colorBg        = lipgloss.Color("#282a36")
 	colorBgLight   = lipgloss.Color("#343746")
 	colorFg        = lipgloss.Color("#f8f8f2")
+	colorOrange    = lipgloss.Color("#ffb86c")
 	colorBorder    = lipgloss.Color("#44475a")
 	colorHighlight = lipgloss.Color("#44475a")
 )
@@ -104,6 +105,17 @@ var (
 
 	traceUserStyle = lipgloss.NewStyle().
 			Foreground(colorPurple)
+
+	// Finding annotation styles
+	findingHighStyle = lipgloss.NewStyle().
+				Foreground(colorRed).
+				Bold(true)
+
+	findingMediumStyle = lipgloss.NewStyle().
+				Foreground(colorOrange)
+
+	findingLowStyle = lipgloss.NewStyle().
+			Foreground(colorYellow)
 
 	// Review decision styles
 	fileApprovedStyle = lipgloss.NewStyle().

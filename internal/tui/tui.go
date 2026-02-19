@@ -460,14 +460,32 @@ func (m Model) renderDiffView(width, height int) string {
 		visibleLines = 1
 	}
 
+	// Build line->findings map for inline annotations
+	findingsByLine := make(map[int][]analysis.Finding)
+	var fileLevelFindings []analysis.Finding
+	for _, fin := range m.fileFindings {
+		if fin.Line == 0 {
+			fileLevelFindings = append(fileLevelFindings, fin)
+		} else {
+			findingsByLine[fin.Line] = append(findingsByLine[fin.Line], fin)
+		}
+	}
+
 	var b strings.Builder
 	b.WriteString(header)
 	b.WriteByte('\n')
 
+	// Show file-level findings under the header
+	for _, fin := range fileLevelFindings {
+		b.WriteString(renderFinding(fin, innerWidth))
+		b.WriteByte('\n')
+		visibleLines--
+	}
+
 	if m.splitView {
-		m.renderSplitDiff(&b, innerWidth, visibleLines)
+		m.renderSplitDiff(&b, innerWidth, visibleLines, findingsByLine)
 	} else {
-		m.renderUnifiedDiff(&b, innerWidth, visibleLines)
+		m.renderUnifiedDiff(&b, innerWidth, visibleLines, findingsByLine)
 	}
 
 	borderStyle := diffViewStyle
@@ -477,21 +495,39 @@ func (m Model) renderDiffView(width, height int) string {
 	return borderStyle.Width(width).Height(innerHeight).Render(b.String())
 }
 
-func (m Model) renderUnifiedDiff(b *strings.Builder, width, visibleLines int) {
+func (m Model) renderUnifiedDiff(b *strings.Builder, width, visibleLines int, findingsByLine map[int][]analysis.Finding) {
 	end := m.scrollOffset + visibleLines
 	if end > len(m.lines) {
 		end = len(m.lines)
 	}
 
-	for i := m.scrollOffset; i < end; i++ {
-		b.WriteString(styleLine(m.lines[i], width))
-		if i < end-1 {
+	linesWritten := 0
+	for i := m.scrollOffset; i < end && linesWritten < visibleLines; i++ {
+		rl := m.lines[i]
+		b.WriteString(styleLine(rl, width))
+		linesWritten++
+
+		// Show inline findings for this line's new line number
+		if rl.NewNum > 0 {
+			if findings, ok := findingsByLine[rl.NewNum]; ok {
+				for _, fin := range findings {
+					if linesWritten >= visibleLines {
+						break
+					}
+					b.WriteByte('\n')
+					b.WriteString(renderFinding(fin, width))
+					linesWritten++
+				}
+			}
+		}
+
+		if linesWritten < visibleLines {
 			b.WriteByte('\n')
 		}
 	}
 }
 
-func (m Model) renderSplitDiff(b *strings.Builder, width, visibleLines int) {
+func (m Model) renderSplitDiff(b *strings.Builder, width, visibleLines int, findingsByLine map[int][]analysis.Finding) {
 	halfWidth := (width - 3) / 2
 
 	end := m.scrollOffset + visibleLines
@@ -551,6 +587,31 @@ func (m Model) renderTracePanel(width, height int) string {
 		borderStyle = borderStyle.BorderForeground(colorBlue)
 	}
 	return borderStyle.Width(width).Height(innerHeight).Render(b.String())
+}
+
+func renderFinding(fin analysis.Finding, width int) string {
+	var style lipgloss.Style
+	switch {
+	case fin.Risk >= model.RiskHigh:
+		style = findingHighStyle
+	case fin.Risk >= model.RiskMedium:
+		style = findingMediumStyle
+	default:
+		style = findingLowStyle
+	}
+
+	loc := ""
+	if fin.Line > 0 {
+		loc = fmt.Sprintf(":%d", fin.Line)
+	}
+
+	text := fmt.Sprintf("  >> [%s%s] %s", fin.Pass, loc, fin.Message)
+	maxLen := width - 2
+	if maxLen > 0 && len(text) > maxLen {
+		text = text[:maxLen-1] + "…"
+	}
+
+	return style.Render(text)
 }
 
 func renderTraceStep(step trace.Step, width int, isCurrent bool) string {
