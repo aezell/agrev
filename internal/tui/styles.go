@@ -1,0 +1,88 @@
+package tui
+
+import "github.com/charmbracelet/lipgloss"
+
+// Color palette.
+var (
+	colorRed       = lipgloss.Color("#ff5555")
+	colorGreen     = lipgloss.Color("#50fa7b")
+	colorYellow    = lipgloss.Color("#f1fa8c")
+	colorBlue      = lipgloss.Color("#8be9fd")
+	colorPurple    = lipgloss.Color("#bd93f9")
+	colorDim       = lipgloss.Color("#6272a4")
+	colorBg        = lipgloss.Color("#282a36")
+	colorBgLight   = lipgloss.Color("#343746")
+	colorFg        = lipgloss.Color("#f8f8f2")
+	colorBorder    = lipgloss.Color("#44475a")
+	colorHighlight = lipgloss.Color("#44475a")
+)
+
+// Style definitions.
+var (
+	// File list styles
+	fileListStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colorBorder).
+			Padding(0, 1)
+
+	fileItemStyle = lipgloss.NewStyle().
+			Foreground(colorFg)
+
+	fileItemSelectedStyle = lipgloss.NewStyle().
+				Foreground(colorFg).
+				Background(colorHighlight).
+				Bold(true)
+
+	fileItemNewStyle = lipgloss.NewStyle().
+				Foreground(colorGreen)
+
+	fileItemDeletedStyle = lipgloss.NewStyle().
+				Foreground(colorRed)
+
+	// Diff view styles
+	diffViewStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colorBorder).
+			Padding(0, 1)
+
+	lineNumberStyle = lipgloss.NewStyle().
+			Foreground(colorDim).
+			Width(4).
+			Align(lipgloss.Right)
+
+	addedLineStyle = lipgloss.NewStyle().
+			Foreground(colorGreen)
+
+	deletedLineStyle = lipgloss.NewStyle().
+				Foreground(colorRed)
+
+	contextLineStyle = lipgloss.NewStyle().
+				Foreground(colorFg)
+
+	hunkHeaderStyle = lipgloss.NewStyle().
+			Foreground(colorPurple).
+			Bold(true)
+
+	fileHeaderStyle = lipgloss.NewStyle().
+			Foreground(colorBlue).
+			Bold(true).
+			Padding(0, 0, 1, 0)
+
+	// Status bar
+	statusBarStyle = lipgloss.NewStyle().
+			Foreground(colorFg).
+			Background(colorBgLight).
+			Padding(0, 1)
+
+	statusKeyStyle = lipgloss.NewStyle().
+			Foreground(colorYellow).
+			Background(colorBgLight).
+			Bold(true)
+
+	// Help bar
+	helpBarStyle = lipgloss.NewStyle().
+			Foreground(colorDim)
+
+	helpKeyStyle = lipgloss.NewStyle().
+			Foreground(colorYellow)
+)
