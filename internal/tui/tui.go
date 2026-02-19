@@ -99,7 +99,7 @@ func (m *Model) updateLines() {
 		return
 	}
 
-	// Build map of newLineNum -> findings
+	// Build map of lineNum -> findings for both old and new line numbers
 	findingsByLine := make(map[int][]analysis.Finding)
 	var fileLevelFindings []analysis.Finding
 	for _, fin := range m.fileFindings {
@@ -111,31 +111,52 @@ func (m *Model) updateLines() {
 	}
 
 	var lines []renderedLine
+	placed := make(map[int]bool) // track which line numbers were matched
 
-	// File-level findings go first
+	// Interleave findings after their matching diff lines (check both NewNum and OldNum)
+	for _, rl := range base {
+		lines = append(lines, rl)
+		for _, num := range []int{rl.NewNum, rl.OldNum} {
+			if num > 0 && !placed[num] {
+				if findings, ok := findingsByLine[num]; ok {
+					placed[num] = true
+					for _, fin := range findings {
+						loc := fmt.Sprintf(":%d", fin.Line)
+						lines = append(lines, renderedLine{
+							IsFinding:   true,
+							FindingRisk: int(fin.Risk),
+							Content:     fmt.Sprintf("  >> [%s%s] %s", fin.Pass, loc, fin.Message),
+						})
+					}
+				}
+			}
+		}
+	}
+
+	// File-level findings and any unplaced findings go at the top
+	var topFindings []renderedLine
 	for _, fin := range fileLevelFindings {
-		lines = append(lines, renderedLine{
+		topFindings = append(topFindings, renderedLine{
 			IsFinding:   true,
 			FindingRisk: int(fin.Risk),
 			Content:     fmt.Sprintf("  >> [%s] %s", fin.Pass, fin.Message),
 		})
 	}
-
-	// Interleave findings after their matching diff lines
-	for _, rl := range base {
-		lines = append(lines, rl)
-		if rl.NewNum > 0 {
-			if findings, ok := findingsByLine[rl.NewNum]; ok {
-				for _, fin := range findings {
-					loc := fmt.Sprintf(":%d", fin.Line)
-					lines = append(lines, renderedLine{
-						IsFinding:   true,
-						FindingRisk: int(fin.Risk),
-						Content:     fmt.Sprintf("  >> [%s%s] %s", fin.Pass, loc, fin.Message),
-					})
-				}
-			}
+	for lineNum, findings := range findingsByLine {
+		if placed[lineNum] {
+			continue
 		}
+		for _, fin := range findings {
+			loc := fmt.Sprintf(":%d", fin.Line)
+			topFindings = append(topFindings, renderedLine{
+				IsFinding:   true,
+				FindingRisk: int(fin.Risk),
+				Content:     fmt.Sprintf("  >> [%s%s] %s", fin.Pass, loc, fin.Message),
+			})
+		}
+	}
+	if len(topFindings) > 0 {
+		lines = append(topFindings, lines...)
 	}
 
 	m.lines = lines
