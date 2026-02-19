@@ -633,7 +633,9 @@ func (m Model) renderStatusBar() string {
 
 	right += "  ? help "
 
-	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
+	// Account for padding (1 char each side) in the status bar style
+	innerWidth := m.width - 2
+	gap := innerWidth - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 0 {
 		gap = 0
 	}
