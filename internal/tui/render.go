@@ -140,12 +140,12 @@ func pulseColor(dimRGB, brightRGB [3]int, phase float64) lipgloss.Color {
 
 // Finding color pairs: [dim, bright] for each risk level.
 var (
-	findingHighDim    = [3]int{0x5a, 0x46, 0x8a} // muted purple
-	findingHighBright = [3]int{0xbd, 0x93, 0xf9} // bright purple
-	findingMedDim     = [3]int{0x44, 0x6a, 0x8a} // muted blue
-	findingMedBright  = [3]int{0x8b, 0xe9, 0xfd} // bright blue
-	findingLowDim     = [3]int{0x8a, 0x8a, 0x4c} // muted yellow
-	findingLowBright  = [3]int{0xf1, 0xfa, 0x8c} // bright yellow
+	findingHighDim    = [3]int{0x8a, 0x5c, 0x3a} // muted orange
+	findingHighBright = [3]int{0xff, 0xb8, 0x6c} // bright orange
+	findingMedDim     = [3]int{0x8a, 0x8a, 0x4c} // muted yellow
+	findingMedBright  = [3]int{0xf1, 0xfa, 0x8c} // bright yellow
+	findingLowDim     = [3]int{0x8a, 0x8a, 0x8a} // muted white
+	findingLowBright  = [3]int{0xf8, 0xf8, 0xf2} // bright white
 )
 
 // styleLine applies styling to a rendered line for unified view.

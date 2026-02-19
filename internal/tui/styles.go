@@ -108,14 +108,14 @@ var (
 
 	// Finding annotation styles
 	findingHighStyle = lipgloss.NewStyle().
-				Foreground(colorPurple).
+				Foreground(colorOrange).
 				Bold(true)
 
 	findingMediumStyle = lipgloss.NewStyle().
-				Foreground(colorBlue)
+				Foreground(colorYellow)
 
 	findingLowStyle = lipgloss.NewStyle().
-			Foreground(colorYellow)
+			Foreground(colorFg)
 
 	// Review decision styles
 	fileApprovedStyle = lipgloss.NewStyle().
